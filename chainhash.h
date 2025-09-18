@@ -1,84 +1,112 @@
-#include <vector>
+#ifndef CHAINHASH_H
+#define CHAINHASH_H
 
+#include <iostream>
 using namespace std;
 
-const int maxColision = 3;
-const float maxFillFactor = 0.8;
-
-template<typename TK, typename TV>
-struct ChainHashNode {
-   //TODO
-};
-
-template<typename TK, typename TV>
-class ChainHashListIterator {
- 	//TODO
-};
-
-template<typename TK, typename TV>
-class ChainHash
-{
-private:    
-    typedef ChainHashNode<TK, TV> Node;
-    typedef ChainHashListIterator<TK, TV> Iterator;
-
-	Node** array;  // array de punteros a Node
-    int nsize; // total de elementos <key:value> insertados
-	int capacity; // tamanio del array
-	int *bucket_sizes; // guarda la cantidad de elementos en cada bucket
-	int usedBuckets; // cantidad de buckets ocupados (con al menos un elemento)
-
-public:
-    ChainHash(int initialCapacity = 10){
-		this->capacity = initialCapacity; 
-		this->array = new Node*[capacity]();  
-		this->bucket_sizes = new int[capacity]();
-		this->nsize = 0;
-		this->usedBuckets = 0;
-	}
-
-	TV get(TK key){
-		size_t hashcode = getHashCode(key);
-		size_t index = hashcode % capacity;
-		
-		Node* current = this->array[index];
-		while(current != nullptr){
-			if(current->key == key) return current->value;
-			current = current->next;
-		}
-		throw std::out_of_range("Key no encontrado");
-	}
-	
-	int size(){ return this->nsize; }	
-
-	int bucket_count(){ return this->capacity; }
-
-	int bucket_size(int index) { 
-		if(index < 0 || index >= this->capacity) throw std::out_of_range("Indice de bucket invalido");
-		return this->bucket_sizes[index]; 
-	}	
-	
-	// TODO: implementar los siguientes métodos
-	void set(TK key, TV value);
-	bool remove(TK key);	
-	bool contains(TK key);	
-	Iterator begin(int index);	
-	Iterator end(int index);	
-
+template <typename K, typename V>
+class ChainHash {
 private:
-	double fillFactor(){
-		return (double)this->usedBuckets / (double)this->capacity;
-	}	
+    struct Node {
+        K key;
+        V value;
+        Node* next;
+        Node(const K& k, const V& v) : key(k), value(v), next(nullptr) {}
+    };
 
-	size_t getHashCode(TK key){
-		std::hash<TK> ptr_hash;
-		return ptr_hash(key);
-	}
+    Node** table;
+    int capacity;
+    int size;
 
-	//TODO: implementar rehashing
-	void rehashing();
+    int hashFunc(const K& key) {
+        unsigned long hash = 5381;
+        for (char c : key) {
+            hash = ((hash << 5) + hash) + c;
+        }
+        return hash % capacity;
+    }
 
 public:
-	// TODO: implementar destructor
-	~ChainHash();
+    ChainHash(int cap = 101) {
+        capacity = cap;
+        size = 0;
+        table = new Node*[capacity];
+        for (int i = 0; i < capacity; i++) table[i] = nullptr;
+    }
+
+    ~ChainHash() {
+        for (int i = 0; i < capacity; i++) {
+            Node* current = table[i];
+            while (current) {
+                Node* tmp = current;
+                current = current->next;
+                delete tmp;
+            }
+        }
+        delete[] table;
+    }
+
+    void set(const K& key, const V& value) {
+        int index = hashFunc(key);
+        Node* current = table[index];
+        while (current) {
+            if (current->key == key) { 
+                current->value = value;
+                return;
+            }
+            current = current->next;
+        }
+        Node* newNode = new Node(key, value);
+        newNode->next = table[index];
+        table[index] = newNode;
+        size++;
+    }
+
+    bool get(const K& key, V& value) {
+        int index = hashFunc(key);
+        Node* current = table[index];
+        while (current) {
+            if (current->key == key) {
+                value = current->value;
+                return true;
+            }
+            current = current->next;
+        }
+        return false;
+    }
+
+    bool contains(const K& key) {
+        int index = hashFunc(key);
+        Node* current = table[index];
+        while (current) {
+            if (current->key == key) return true;
+            current = current->next;
+        }
+        return false;
+    }
+
+    int bucket_count() { return capacity; }
+
+    int bucket_size(int index) {
+        int count = 0;
+        Node* current = table[index];
+        while (current) { count++; current = current->next; }
+        return count;
+    }
+
+    // Iterador para recorrer cada bucket
+    class Iterator {
+    private:
+        Node* node;
+    public:
+        Iterator(Node* n) : node(n) {}
+        bool operator!=(const Iterator& other) { return node != other.node; }
+        void operator++() { if (node) node = node->next; }
+        Node& operator*() { return *node; }
+    };
+
+    Iterator begin(int index) { return Iterator(table[index]); }
+    Iterator end(int) { return Iterator(nullptr); }
 };
+
+#endif
